@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    // stdout is the MCP protocol channel; a stray console.log corrupts the
+    // stream. CLI entry points that legitimately print usage opt out per-line.
+    "no-console": ["error", { "allow": ["error", "warn"] }]
+  },
+  "overrides": [
+    {
+      // Standalone operator scripts, never loaded by the server: their stdout is
+      // a terminal, and printing the plan there is the point.
+      "files": ["scripts/**"],
+      "rules": { "no-console": "off" }
+    }
+  ],
+  "ignorePatterns": ["dist", "node_modules"]
+}

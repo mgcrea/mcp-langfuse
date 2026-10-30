@@ -1,0 +1,79 @@
+{
+  "name": "@mgcrea/mcp-langfuse",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for Langfuse, built for v4 events-only deployments",
+  "keywords": [
+    "langfuse",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "author": "Olivier Louvignes <olivier@mgcrea.io>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mgcrea/mcp-langfuse.git"
+  },
+  "bin": {
+    "langfuse-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "imports": {
+    "#/*": "./src/*.ts",
+    "#test/*": "./test/*.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "start": "node dist/cli.js",
+    "provision": "tsx scripts/provision-keys.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "release": "pnpm dlx release-it",
+    "docker:build": "BUILDER=build scripts/docker-build.sh",
+    "docker:buildx": "BUILDER=buildx scripts/docker-build.sh",
+    "docker:push": "docker push mgcrea/mcp-langfuse:latest && docker push mgcrea/mcp-langfuse:$npm_package_version",
+    "docker:release": "BUILDER=buildx scripts/docker-build.sh --push",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "bcryptjs": "^3.0.3",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "pg": "^8.23.1",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.10.1"
+}
