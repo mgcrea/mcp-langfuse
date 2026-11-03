@@ -8,6 +8,9 @@ import { scoped, wrap } from "#/tools/util";
 
 const SAFE_PATH = /^\/api\/public\/[A-Za-z0-9/_.~%-]*$/;
 
+/** `..` and the spellings the URL parser resolves the same way: `.%2e`, `%2e.`, `%2e%2e`. */
+const DOT_DOT = /^(?:\.|%2e){2}$/i;
+
 export const registerRequestTool = (
   server: McpServer,
   projects: ProjectRegistry,
@@ -63,7 +66,9 @@ export const registerRequestTool = (
           if (!ctx.allowWrites && method !== "GET") {
             throw new WritesDisabledError(`langfuse_request with method ${method}`);
           }
-          if (path.split("/").includes("..")) throw new Error("Path must not contain '..'.");
+          if (path.split("/").some((segment) => DOT_DOT.test(segment))) {
+            throw new Error("Path must not contain '..'.");
+          }
           const response = await client.request(method, path, {
             ...(query ? { query } : {}),
             ...(method !== "GET" && body !== undefined ? { body } : {}),

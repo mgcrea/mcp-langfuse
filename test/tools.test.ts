@@ -614,6 +614,14 @@ describe("langfuse_request", () => {
     expect(harness.paths()).not.toContain("/api/admin/x");
   });
 
+  it("refuses percent-encoded traversal, which the URL parser resolves like '..'", async () => {
+    const harness = await connect();
+    for (const path of ["/api/public/%2e%2e/%2e%2e/admin", "/api/public/.%2E/x"]) {
+      expect((await harness.call("langfuse_request", { path })).isToolError, path).toBe(true);
+    }
+    expect(harness.paths().filter((p) => !p.startsWith("/api/public/"))).toEqual([]);
+  });
+
   it("passes writes through when the flag is on", async () => {
     const harness = await connect({ ...CREDS, LANGFUSE_ALLOW_WRITES: "1" });
     const res = await harness.call("langfuse_request", {
