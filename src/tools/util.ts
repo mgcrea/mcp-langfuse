@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import { LangfuseApiError, ProjectMismatchError, WritesDisabledError } from "#/client/errors";
+import { LangfuseApiError, ProjectMismatchError } from "#/client/errors";
 import type { LangfuseClient } from "#/client/langfuse";
 import type { ProjectRegistry } from "#/client/projects";
-import { DURATION, type FilterCondition } from "#/client/query";
+import { DURATION } from "#/client/query";
 
 export type ToolResult = {
   content: { type: "text"; text: string }[];
@@ -34,7 +34,6 @@ export const toFailure = (err: unknown): ToolResult => {
     });
   }
   if (err instanceof ProjectMismatchError) return fail(err.message, { remedy: err.remedy });
-  if (err instanceof WritesDisabledError) return fail(err.message);
   if (err instanceof Error) return fail(err.message);
   return fail("Unknown error", { details: err });
 };
@@ -248,5 +247,3 @@ export const extraFiltersArg = z
       '"metadata","key":"customer_id","operator":"=","value":"C-42"}, or cost: ' +
       '{"type":"number","column":"totalCost","operator":">","value":0.1}.',
   );
-
-export type ExtraFilters = FilterCondition[] | undefined;
