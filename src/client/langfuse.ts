@@ -145,6 +145,9 @@ export class LangfuseClient {
       if ((res.status === 429 || res.status >= 500) && attempt < this.maxRetries) {
         const delay = retryAfterMs(res) ?? backoffMs(attempt);
         this.logger?.warn?.(`HTTP ${res.status} — retrying in ${delay}ms`);
+        // Undici holds the connection until an unread body is consumed or
+        // cancelled; a dropped one is only freed by garbage collection.
+        await res.body?.cancel().catch(() => undefined);
         await new Promise((r) => setTimeout(r, delay));
         attempt += 1;
         continue;

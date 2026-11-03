@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { LangfuseClient } from "#/client/langfuse";
 import { parseDuration, resolveWindow } from "#/client/query";
 import { cleanMetadata, clip, orderAsTree } from "#/client/shape";
 import { loadConfig, setupInstructions } from "#/config";
@@ -51,6 +52,29 @@ describe("orderAsTree", () => {
       ["a", 0],
       ["b", 0],
     ]);
+  });
+});
+
+describe("LangfuseClient retries", () => {
+  it("retries a 503 and releases its body first, so the socket is not held until GC", async () => {
+    let cancelled = false;
+    const responses = [
+      new Response(new ReadableStream({ cancel: () => void (cancelled = true) }), {
+        status: 503,
+        headers: { "Retry-After": "0" },
+      }),
+      new Response(JSON.stringify({ ok: 1 }), { status: 200 }),
+    ];
+    const client = new LangfuseClient({
+      baseUrl: "https://lf.example.com",
+      publicKey: "pk-lf-x",
+      secretKey: "sk-lf-x",
+      maxRetries: 1,
+      userAgent: "test",
+      fetch: async () => responses.shift()!,
+    });
+    expect(await client.get("/api/public/health")).toEqual({ ok: 1 });
+    expect(cancelled).toBe(true);
   });
 });
 
