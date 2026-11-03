@@ -33,7 +33,8 @@ export const retryAfterMs = (res: Response): number | undefined => {
   return Number.isFinite(seconds) ? Math.max(seconds, 0) * 1000 : undefined;
 };
 
-const EVENTS_ONLY = /events_only/i;
+/** The marker in the 404 a v4 events-only deployment returns for a removed endpoint. */
+export const EVENTS_ONLY = /events_only/i;
 
 const upstreamMessage = (body: unknown): string | undefined =>
   typeof body === "object" &&

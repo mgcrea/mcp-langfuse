@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import { maskKey } from "#/client/auth";
 import { LangfuseApiError, ProjectMismatchError } from "#/client/errors";
-import type { LangfuseClient } from "#/client/langfuse";
+import { EVENTS_ONLY, type LangfuseClient } from "#/client/langfuse";
 import type { ProjectRegistry } from "#/client/projects";
 import { setupInstructions } from "#/config";
 import type { ToolContext } from "#/tools/index";
@@ -18,7 +18,7 @@ const detectEventsOnly = async (client: LangfuseClient): Promise<boolean | "unkn
     await client.get("/api/public/traces", { limit: 1 });
     return false;
   } catch (err) {
-    if (err instanceof LangfuseApiError && err.status === 404 && /events_only/i.test(err.message)) {
+    if (err instanceof LangfuseApiError && err.status === 404 && EVENTS_ONLY.test(err.message)) {
       return true;
     }
     return "unknown";
