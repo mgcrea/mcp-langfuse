@@ -32,6 +32,9 @@ export const backoffMs = (attempt: number): number => Math.min(1000 * 2 ** attem
  */
 export const MAX_RETRY_AFTER_MS = 30_000;
 
+/** Per attempt, covering the response body too. Not retried: a hung host stays hung. */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+
 export const retryAfterMs = (res: Response): number | undefined => {
   const header = res.headers.get("Retry-After");
   if (header === null) return undefined;
@@ -94,6 +97,8 @@ export type LangfuseClientOptions = {
   expect?: string[];
   maxRetries: number;
   userAgent: string;
+  /** Abort an attempt after this long. Defaults to DEFAULT_TIMEOUT_MS. */
+  timeoutMs?: number;
   fetch?: typeof fetch;
   logger?: Logger;
 };
@@ -104,6 +109,7 @@ export class LangfuseClient {
   private readonly expect: string[];
   private readonly maxRetries: number;
   private readonly userAgent: string;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly logger: Logger | undefined;
   private projectPromise: Promise<Project> | undefined;
@@ -114,6 +120,7 @@ export class LangfuseClient {
     this.expect = opts.expect ?? [];
     this.maxRetries = opts.maxRetries;
     this.userAgent = opts.userAgent;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = opts.fetch ?? fetch;
     this.logger = opts.logger;
   }
@@ -135,11 +142,23 @@ export class LangfuseClient {
       else url.searchParams.set(k, String(v));
     }
 
+    // A hung upstream would otherwise hold the tool call until the MCP client
+    // gives up, with nothing saying why.
+    const timedOut = (err: unknown): unknown =>
+      err instanceof DOMException && err.name === "TimeoutError"
+        ? new Error(
+            `${method} ${url.pathname} timed out after ${this.timeoutMs / 1000} s: ${this.baseUrl} ` +
+              "accepted the request but did not answer. Check that Langfuse is up, or narrow the query.",
+          )
+        : err;
+
     let attempt = 0;
     for (;;) {
       this.logger?.debug?.(`${method} ${url.pathname} (attempt ${attempt + 1})`);
+      const signal = AbortSignal.timeout(this.timeoutMs);
       const res = await this.fetchImpl(url, {
         method,
+        signal,
         headers: {
           Authorization: this.authorization,
           "User-Agent": this.userAgent,
@@ -147,6 +166,8 @@ export class LangfuseClient {
           ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
         },
         ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+      }).catch((err: unknown) => {
+        throw timedOut(err);
       });
 
       const retryAfter = retryAfterMs(res);
@@ -162,7 +183,9 @@ export class LangfuseClient {
         continue;
       }
 
-      const text = await res.text();
+      const text = await res.text().catch((err: unknown) => {
+        throw timedOut(err);
+      });
       let parsed: unknown = undefined;
       if (text) {
         try {

@@ -96,6 +96,28 @@ describe("LangfuseClient retries", () => {
     });
     expect(calls).toBe(1);
   });
+
+  it("gives up on an upstream that never answers, once, with a message saying so", async () => {
+    let calls = 0;
+    const client = new LangfuseClient({
+      baseUrl: "https://lf.example.com",
+      publicKey: "pk-lf-x",
+      secretKey: "sk-lf-x",
+      maxRetries: 3,
+      userAgent: "test",
+      timeoutMs: 20,
+      fetch: (_url, init) => {
+        calls += 1;
+        return new Promise((_, reject) =>
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+        );
+      },
+    });
+    await expect(client.get("/api/public/health")).rejects.toThrow(
+      /GET \/api\/public\/health timed out after 0\.02 s/,
+    );
+    expect(calls).toBe(1);
+  });
 });
 
 describe("time windows", () => {
