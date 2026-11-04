@@ -24,6 +24,8 @@ import { dirname } from "node:path";
 
 import bcrypt from "bcryptjs";
 
+import { describeZod, KeysFileSchema } from "#/config";
+
 export const KEY_NOTE = "mcp-langfuse (read)";
 
 export type KeyPair = { publicKey: string; secretKey: string };
@@ -186,6 +188,13 @@ export const planActions = (input: {
 };
 
 // -------------------------------------------------------------- keys file --
+
+/** Parse the keys file with the schema the server reads it with. Throws on malformed input. */
+export const parseKeysFile = (text: string): KeysFile => {
+  const parsed = KeysFileSchema.safeParse(JSON.parse(text));
+  if (!parsed.success) throw new Error(`not a valid keys file: ${describeZod(parsed.error)}`);
+  return parsed.data;
+};
 
 /**
  * Write the keys file atomically with mode 0600, in a 0700 directory. Written

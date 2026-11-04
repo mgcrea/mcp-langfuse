@@ -30,6 +30,7 @@ import {
   fastHash,
   generateKeyPair,
   generateRowId,
+  parseKeysFile,
   planActions,
   slowHash,
   writeKeysFile,
@@ -103,7 +104,7 @@ const checkKey = async (pair: KeyPair): Promise<KeyCheck> => {
 
 const readKeysFile = (): KeysFile => {
   try {
-    return JSON.parse(readFileSync(keysPath, "utf8")) as KeysFile;
+    return parseKeysFile(readFileSync(keysPath, "utf8"));
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return { projects: {} };
     return fail(`could not read ${keysPath}: ${(err as Error).message}`);

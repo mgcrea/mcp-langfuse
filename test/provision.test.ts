@@ -12,6 +12,7 @@ import {
   entryNames,
   fastHash,
   generateKeyPair,
+  parseKeysFile,
   planActions,
   slowHash,
   writeKeysFile,
@@ -146,5 +147,17 @@ describe("writeKeysFile", () => {
     expect(config.projects).toMatchObject([
       { name: "sales", expect: ["sales", "p-sales"], source: "keys file" },
     ]);
+  });
+});
+
+describe("parseKeysFile", () => {
+  it("reads the file with the server's own schema, so a missing `projects` is an error, not a crash", () => {
+    expect(() => parseKeysFile("{}")).toThrow(/not a valid keys file: projects/);
+    expect(() =>
+      parseKeysFile(JSON.stringify({ projects: { sales: { publicKey: "pk", secretkey: "sk" } } })),
+    ).toThrow(/not a valid keys file/);
+    expect(parseKeysFile(JSON.stringify({ projects: { sales: pair("s") } })).projects).toEqual({
+      sales: pair("s"),
+    });
   });
 });

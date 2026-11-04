@@ -29,9 +29,10 @@ const ProjectsMapSchema = z.record(z.string().min(1), KeyPairSchema);
 
 /**
  * The keys file `scripts/provision-keys.ts` writes. `.strict()` on purpose: a
- * typo'd `secretkey` must be an error, not a silently-missing project.
+ * typo'd `secretkey` must be an error, not a silently-missing project. The
+ * provisioning script reads the file with it too, so the two never disagree.
  */
-const KeysFileSchema = z
+export const KeysFileSchema = z
   .object({
     host: z.url().optional(),
     updatedAt: z.string().optional(),
@@ -101,7 +102,7 @@ export const resolveKeysFilePath = (env: NodeJS.ProcessEnv = process.env): strin
   return join(expandTilde(base), "langfuse-mcp", "keys.json");
 };
 
-const describeZod = (err: z.ZodError): string =>
+export const describeZod = (err: z.ZodError): string =>
   err.issues
     .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
     .join("; ");
