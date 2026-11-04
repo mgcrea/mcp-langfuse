@@ -63,9 +63,6 @@ jobs:
               process.exit(1);
             }
           "
-      # The tool list is the server's public contract, and it is easy to change
-      # by accident. This asserts the built CLI still speaks MCP over stdio, and
-      # that an unconfigured capability is absent rather than merely refused.
       # The tool list is the server's public contract and is easy to change by
       # accident. Three phases, because the negative check in phase 2 passes
       # vacuously if a tool is renamed — phase 3 is what stops that.
