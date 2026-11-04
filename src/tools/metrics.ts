@@ -88,7 +88,7 @@ export const registerMetricsTools = (
             'Bucket results over time at this granularity, e.g. "day". "auto" makes ~50 buckets. Omit for one row per group.',
           ),
         since: sinceArg.describe(
-          'Relative window ending now, e.g. "7d". Defaults to "24h" when neither since nor from is given.',
+          'Relative window ending now, e.g. "7d". When neither since nor from is given, defaults to the 24h before `to`, or before now.',
         ),
         from: fromArg,
         to: toArg,
@@ -126,12 +126,13 @@ export const registerMetricsTools = (
     async (args) =>
       wrap(() =>
         scoped(projects, args.project, async (client) => {
+          // The default 24h ends where the caller's window ends: at `to` when
+          // given, so a bare `to` in the past cannot yield from > to.
+          const defaulted = !args.from && !args.since;
           const window = resolveWindow(
             { ...args, since: args.from ? undefined : (args.since ?? "24h") },
-            ctx.now(),
-            {
-              requireTo: true,
-            },
+            defaulted && args.to ? new Date(args.to) : ctx.now(),
+            { requireTo: true },
           );
           const query = {
             view: args.view,

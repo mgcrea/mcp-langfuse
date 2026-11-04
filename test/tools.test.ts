@@ -571,6 +571,18 @@ describe("langfuse_query_metrics", () => {
       config: { row_limit: 100 },
     });
   });
+
+  it("counts the default 24h back from `to` when only `to` is given", async () => {
+    const harness = await connect();
+    await harness.call("langfuse_query_metrics", {
+      metrics: [{ measure: "count", aggregation: "count" }],
+      to: "2026-09-01T00:00:00Z",
+    });
+    expect(JSON.parse(harness.paramsOf("/api/public/v2/metrics")!.get("query")!)).toMatchObject({
+      fromTimestamp: "2026-08-31T00:00:00.000Z",
+      toTimestamp: "2026-09-01T00:00:00Z",
+    });
+  });
 });
 
 describe("errors", () => {
