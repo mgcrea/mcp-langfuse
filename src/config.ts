@@ -65,6 +65,12 @@ export type Config = z.infer<typeof ScalarsSchema> & {
    * problem never reaches anyone.
    */
   problems: string[];
+  /**
+   * Projects whose keys were found but are not served, because LANGFUSE_HOST
+   * is invalid: serving them against the default host would send the keys to
+   * an instance that never issued them.
+   */
+  withheld?: string[];
 };
 
 const parseBool = (value: string | undefined): boolean | undefined => {
@@ -99,6 +105,31 @@ const describeZod = (err: z.ZodError): string =>
   err.issues
     .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
     .join("; ");
+
+type Scalars = z.infer<typeof ScalarsSchema>;
+
+/**
+ * The scalars, with any invalid one reported and left at its default rather
+ * than thrown — see `Config.problems` for why nothing here may throw.
+ */
+const parseScalars = (
+  input: z.input<typeof ScalarsSchema>,
+  problems: string[],
+): { scalars: Scalars; hostInvalid: boolean } => {
+  const parsed = ScalarsSchema.safeParse(input);
+  if (parsed.success) return { scalars: parsed.data, hostInvalid: false };
+  const bad = new Set(parsed.error.issues.map((issue) => String(issue.path[0])));
+  for (const issue of parsed.error.issues) {
+    const field = String(issue.path[0]);
+    problems.push(
+      field === "baseUrl"
+        ? `${issue.message}. No project is served until it is fixed, so no key is sent to the default host instead.`
+        : `${field === "maxRetries" ? "LANGFUSE_MAX_RETRIES" : field}: ${issue.message}; using the default.`,
+    );
+  }
+  const rest = Object.fromEntries(Object.entries(input).filter(([k]) => !bad.has(k)));
+  return { scalars: ScalarsSchema.parse(rest), hostInvalid: bad.has("baseUrl") };
+};
 
 type KeysFile = z.infer<typeof KeysFileSchema>;
 
@@ -178,14 +209,18 @@ export const loadConfig = (
   const file = readKeysFile(keysFile, problems);
   const fromEnvMap = parseProjectsEnv(trimmed(env.LANGFUSE_PROJECTS), problems);
 
-  const scalars = ScalarsSchema.parse({
-    baseUrl: (trimmed(env.LANGFUSE_HOST) ?? trimmed(env.LANGFUSE_BASE_URL) ?? file?.host)?.replace(
-      /\/+$/,
-      "",
-    ),
-    allowWrites: parseBool(env.LANGFUSE_ALLOW_WRITES),
-    maxRetries: parseIntOpt(env.LANGFUSE_MAX_RETRIES),
-  });
+  const { scalars, hostInvalid } = parseScalars(
+    {
+      baseUrl: (
+        trimmed(env.LANGFUSE_HOST) ??
+        trimmed(env.LANGFUSE_BASE_URL) ??
+        file?.host
+      )?.replace(/\/+$/, ""),
+      allowWrites: parseBool(env.LANGFUSE_ALLOW_WRITES),
+      maxRetries: parseIntOpt(env.LANGFUSE_MAX_RETRIES),
+    },
+    problems,
+  );
 
   const projects = new Map<string, ProjectEntry>();
   const addMap = (map: z.infer<typeof ProjectsMapSchema>, source: ProjectEntry["source"]): void => {
@@ -234,11 +269,13 @@ export const loadConfig = (
   addMap(fromEnvMap, "LANGFUSE_PROJECTS");
   addMap(file?.projects ?? {}, "keys file");
 
+  const sorted = [...projects.values()].toSorted((a, b) => a.name.localeCompare(b.name));
   return {
     ...scalars,
-    projects: [...projects.values()].toSorted((a, b) => a.name.localeCompare(b.name)),
+    projects: hostInvalid ? [] : sorted,
     keysFile,
     problems,
+    ...(hostInvalid && sorted.length ? { withheld: sorted.map((p) => p.name) } : {}),
   };
 };
 
@@ -247,7 +284,7 @@ export const isConfigured = (config: Config): boolean => config.projects.length 
 /** Returned by langfuse_auth_status and printed to stderr at startup. */
 export const setupInstructions = (config: Config): string[] => {
   const lines = [...config.problems];
-  if (!isConfigured(config)) {
+  if (!isConfigured(config) && !config.withheld?.length) {
     lines.push(
       "No Langfuse keys configured. Either run `pnpm provision` in the mcp-langfuse repo to " +
         `write one key per project to ${config.keysFile}, or set LANGFUSE_PUBLIC_KEY (pk-lf-…) ` +

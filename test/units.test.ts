@@ -159,6 +159,31 @@ describe("loadConfig", () => {
     expect(setupInstructions(config).join(" ")).toContain("look swapped");
   });
 
+  it("reports an invalid LANGFUSE_HOST instead of throwing, and serves no key anywhere", () => {
+    const keys = { LANGFUSE_PUBLIC_KEY: "pk-lf-a", LANGFUSE_SECRET_KEY: "sk-lf-a" };
+    const config = loadConfig({ ...keys, LANGFUSE_HOST: "not-a-url" }, ABSENT_KEYS_FILE);
+    expect(config.projects).toEqual([]);
+    const setup = setupInstructions(config).join(" ");
+    expect(setup).toContain("LANGFUSE_HOST must be a URL");
+    expect(setup).toContain("default");
+    // The keys are there; saying "no keys configured" would send the reader the wrong way.
+    expect(setup).not.toContain("No Langfuse keys configured");
+  });
+
+  it("reports an out-of-range LANGFUSE_MAX_RETRIES and keeps serving with the default", () => {
+    const config = loadConfig(
+      {
+        LANGFUSE_PUBLIC_KEY: "pk-lf-a",
+        LANGFUSE_SECRET_KEY: "sk-lf-a",
+        LANGFUSE_MAX_RETRIES: "20",
+      },
+      ABSENT_KEYS_FILE,
+    );
+    expect(config.maxRetries).toBe(3);
+    expect(config.projects).toHaveLength(1);
+    expect(config.problems.join(" ")).toContain("LANGFUSE_MAX_RETRIES");
+  });
+
   it("treats an empty variable as unset", () => {
     expect(
       loadConfig(
