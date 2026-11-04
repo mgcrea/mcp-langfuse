@@ -76,6 +76,26 @@ describe("LangfuseClient retries", () => {
     expect(await client.get("/api/public/health")).toEqual({ ok: 1 });
     expect(cancelled).toBe(true);
   });
+
+  it("fails fast when Retry-After asks for longer than one call should wait", async () => {
+    let calls = 0;
+    const client = new LangfuseClient({
+      baseUrl: "https://lf.example.com",
+      publicKey: "pk-lf-x",
+      secretKey: "sk-lf-x",
+      maxRetries: 3,
+      userAgent: "test",
+      fetch: async () => {
+        calls += 1;
+        return new Response("{}", { status: 429, headers: { "Retry-After": "600" } });
+      },
+    });
+    await expect(client.get("/api/public/health")).rejects.toMatchObject({
+      status: 429,
+      remedy: expect.stringContaining("600 s"),
+    });
+    expect(calls).toBe(1);
+  });
 });
 
 describe("time windows", () => {

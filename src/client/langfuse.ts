@@ -26,6 +26,12 @@ export type Project = { id: string; name: string; organization?: string };
 
 export const backoffMs = (attempt: number): number => Math.min(1000 * 2 ** attempt, 8000);
 
+/**
+ * The longest Retry-After honoured inside one tool call. Beyond it the call
+ * fails at once and says how long to wait, instead of sleeping for minutes.
+ */
+export const MAX_RETRY_AFTER_MS = 30_000;
+
 export const retryAfterMs = (res: Response): number | undefined => {
   const header = res.headers.get("Retry-After");
   if (header === null) return undefined;
@@ -143,8 +149,10 @@ export class LangfuseClient {
         ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       });
 
-      if ((res.status === 429 || res.status >= 500) && attempt < this.maxRetries) {
-        const delay = retryAfterMs(res) ?? backoffMs(attempt);
+      const retryAfter = retryAfterMs(res);
+      const tooLong = retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS;
+      if ((res.status === 429 || res.status >= 500) && attempt < this.maxRetries && !tooLong) {
+        const delay = retryAfter ?? backoffMs(attempt);
         this.logger?.warn?.(`HTTP ${res.status} — retrying in ${delay}ms`);
         // Undici holds the connection until an unread body is consumed or
         // cancelled; a dropped one is only freed by garbage collection.
@@ -165,7 +173,10 @@ export class LangfuseClient {
       }
       if (!res.ok) {
         const upstream = upstreamMessage(parsed);
-        const remedy = remedyFor(res.status, parsed);
+        const remedy = tooLong
+          ? `Langfuse asked to retry after ${Math.ceil(retryAfter / 1000)} s (Retry-After), ` +
+            "longer than this server waits inside one call. Try again after that."
+          : remedyFor(res.status, parsed);
         throw new LangfuseApiError(
           `${method} ${url.pathname} failed: HTTP ${res.status}${upstream ? ` — ${upstream}` : ""}`,
           {
